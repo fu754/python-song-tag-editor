@@ -19,7 +19,7 @@ TSV_HEADER: Final[list[str]] = [
     'album_name'
 ]
 
-class FileInfo:
+class FileInfo():
     """
     ファイルの情報
     """
