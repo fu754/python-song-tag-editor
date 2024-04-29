@@ -3,7 +3,7 @@ import shutil
 import glob
 from mutagen.id3 import ID3
 from mutagen.mp4 import MP4, MP4Tags
-from typing import Final
+from typing import Final, Literal
 
 # 読み込み対象のディレクトリ
 SONG_DIRECTORY: Final[str] = 'songs'
@@ -18,8 +18,35 @@ TSV_HEADER: Final[list[str]] = [
     'artist_name',
     'album_name',
     'album_artist',
-    'extension'
+    'extension',
+    'is_compilation'
 ]
+
+class TsvInfo():
+    file_path: str
+    song_name: str
+    artist_name: str
+    album_name: str
+    album_artist: str
+    extension: str
+    is_compilation: bool
+
+    def __init__(self,
+            file_path: str,
+            song_name: str,
+            artist_name: str,
+            album_name: str,
+            album_artist: str,
+            extension: str,
+            is_compilation: bool):
+        self.file_path = file_path
+        self.song_name = song_name
+        self.artist_name = artist_name
+        self.album_name = album_name
+        self.album_artist = album_artist
+        self.extension = extension
+        self.is_compilation = is_compilation
+        return
 
 class FileInfo():
     """
@@ -61,11 +88,89 @@ def init_tsv() -> None:
         fp.write(text)
     return
 
+def write_to_tsv(tsv_info: TsvInfo) -> None:
+    text: str = ''
+    text += f'{tsv_info.file_path}\t'
+    text += f'{tsv_info.song_name}\t'
+    text += f'{tsv_info.artist_name}\t'
+    text += f'{tsv_info.album_name}\t'
+    text += f'{tsv_info.album_artist}\t'
+    text += f'{tsv_info.extension}\t'
+    text += f'{tsv_info.is_compilation}'
+    text += '\n'
+    with open(SONG_LIST_TSV_PATH, mode='a', encoding='utf_8_sig') as fp:
+        fp.write(text)
+    return
+
+def mp3_controller(file_info: FileInfo) -> None:
+    mp3_info: ID3 = ID3(file_info.file_path)
+    print(mp3_info.pprint())
+    song_name: str      = mp3_info['TIT2'].text[0]
+    artist_name: str    = mp3_info['TPE1'].text[0]
+    album_name: str     = mp3_info['TALB'].text[0]
+    # アルバムアーティストが設定されているか確認、なければ空文字
+    if 'TPE2' in mp3_info:
+        album_artist: str   = mp3_info['TPE2'].text[0]
+    else:
+        album_artist: str = ''
+
+    # コンピレーションアルバムかどうかのフラグの取得
+    is_compilation: bool
+    if 'TCMP' in mp3_info:
+        _is_compilation: Literal["0", "1"] = mp3_info['TCMP']
+        if _is_compilation == "0":
+            is_compilation: False
+        elif _is_compilation == "1":
+            is_compilation = True
+        else:
+            raise Exception(f'TCMP value: {_is_compilation}')
+    else:
+        is_compilation = False
+
+    # tsvに書き出し
+    tsv_info: TsvInfo = TsvInfo(
+        file_path=file_info.file_path,
+        song_name=song_name,
+        artist_name=artist_name,
+        album_name=album_name,
+        album_artist=album_artist,
+        extension=file_info.extension,
+        is_compilation=is_compilation
+    )
+    write_to_tsv(tsv_info)
+    return
+
+
+def m4a_controller(file_info: FileInfo) -> None:
+    mp4_info: MP4 = MP4(file_info.file_path)
+    print(mp4_info.pprint())
+    tag: MP4Tags = mp4_info.tags
+    song_name: str      = tag['\xa9nam'][0]
+    artist_name: str    = tag['\xa9ART'][0]
+    album_name: str     = tag['\xa9alb'][0]
+    album_artist: str   = tag['aART'][0]
+
+    # コンピレーションアルバムかどうかのフラグの取得
+    is_compilation: bool = tag['cpil']
+
+    # tsvに書き出し
+    tsv_info: TsvInfo = TsvInfo(
+        file_path=file_info.file_path,
+        song_name=song_name,
+        artist_name=artist_name,
+        album_name=album_name,
+        album_artist=album_artist,
+        extension=file_info.extension,
+        is_compilation=is_compilation
+    )
+    write_to_tsv(tsv_info)
+    return
+
 def main() -> None:
     """
     メインの処理
     """
-    # DIRECTORYディレクトリ以下のファイルパスと拡張子の取得
+    # TMP_SONG_DIRECTORYディレクトリ以下のファイルパスと拡張子の取得
     file_info_list: list[FileInfo]= []
     for file_path in glob.glob(f'{TMP_SONG_DIRECTORY}/**/*.*', recursive=True):
         extension: str = file_path.split('.')[-1]
@@ -75,39 +180,18 @@ def main() -> None:
         )
         file_info_list.append(info)
 
-    # タグの表示
+    # タグの取得
     for file_info in file_info_list:
         print(f'-------- Current file: {file_info.file_path}')
         if file_info.extension == 'mp3':
-            mp3_info: ID3 = ID3(file_info.file_path)
-            # print(mp3_info.pprint())
-            song_name: str      = mp3_info['TIT2'].text[0]
-            artist_name: str    = mp3_info['TPE1'].text[0]
-            album_name: str     = mp3_info['TALB'].text[0]
-            # アルバムアーティストが設定されているか確認、なければ空文字
-            if 'TPE2' in mp3_info:
-                album_artist: str   = mp3_info['TPE2'].text[0]
-            else:
-                album_artist: str = ''
-            with open(SONG_LIST_TSV_PATH, mode='a', encoding='utf_8_sig') as fp:
-                text: str = f'{file_info.file_path}\t{song_name}\t{artist_name}\t{album_name}\t{album_artist}\t{file_info.extension}\n'
-                fp.write(text)
+            mp3_controller(file_info)
         elif file_info.extension == 'm4a':
-            mp4_info: MP4 = MP4(file_info.file_path)
-            # print(mp4_info.pprint())
-            tag: MP4Tags = mp4_info.tags
-            song_name: str      = tag['\xa9nam'][0]
-            artist_name: str    = tag['\xa9ART'][0]
-            album_name: str     = tag['\xa9alb'][0]
-            album_artist: str   = tag['aART'][0]
-            with open(SONG_LIST_TSV_PATH, mode='a', encoding='utf_8_sig') as fp:
-                text: str = f'{file_info.file_path}\t{song_name}\t{artist_name}\t{album_name}\t{album_artist}\t{file_info.extension}\n'
-                fp.write(text)
+            m4a_controller(file_info)
         else:
             pass
     return
 
 if __name__ == '__main__':
-    init_dirs()
+    # init_dirs()
     init_tsv()
     main()
