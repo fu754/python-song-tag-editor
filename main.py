@@ -19,7 +19,8 @@ TSV_HEADER: Final[list[str]] = [
     'album_name',
     'album_artist',
     'extension',
-    'is_compilation'
+    'is_compilation',
+    'id3_version'
 ]
 
 class TsvInfo():
@@ -30,6 +31,7 @@ class TsvInfo():
     album_artist: str
     extension: str
     is_compilation: bool
+    id3_version: int
 
     def __init__(self,
             file_path: str,
@@ -38,7 +40,8 @@ class TsvInfo():
             album_name: str,
             album_artist: str,
             extension: str,
-            is_compilation: bool):
+            is_compilation: bool,
+            id3_version: int):
         self.file_path = file_path
         self.song_name = song_name
         self.artist_name = artist_name
@@ -46,6 +49,7 @@ class TsvInfo():
         self.album_artist = album_artist
         self.extension = extension
         self.is_compilation = is_compilation
+        self.id3_version = id3_version
         return
 
 class FileInfo():
@@ -96,7 +100,8 @@ def write_to_tsv(tsv_info: TsvInfo) -> None:
     text += f'{tsv_info.album_name}\t'
     text += f'{tsv_info.album_artist}\t'
     text += f'{tsv_info.extension}\t'
-    text += f'{tsv_info.is_compilation}'
+    text += f'{tsv_info.is_compilation}\t'
+    text += f'{tsv_info.id3_version}'
     text += '\n'
     with open(SONG_LIST_TSV_PATH, mode='a', encoding='utf_8_sig') as fp:
         fp.write(text)
@@ -127,6 +132,8 @@ def mp3_controller(file_info: FileInfo) -> None:
     else:
         is_compilation = False
 
+    version = mp3_info.version[0]
+
     # tsvに書き出し
     tsv_info: TsvInfo = TsvInfo(
         file_path=file_info.file_path,
@@ -135,11 +142,11 @@ def mp3_controller(file_info: FileInfo) -> None:
         album_name=album_name,
         album_artist=album_artist,
         extension=file_info.extension,
-        is_compilation=is_compilation
+        is_compilation=is_compilation,
+        id3_version=version
     )
     write_to_tsv(tsv_info)
     return
-
 
 def m4a_controller(file_info: FileInfo) -> None:
     mp4_info: MP4 = MP4(file_info.file_path)
@@ -148,7 +155,12 @@ def m4a_controller(file_info: FileInfo) -> None:
     song_name: str      = tag['\xa9nam'][0]
     artist_name: str    = tag['\xa9ART'][0]
     album_name: str     = tag['\xa9alb'][0]
-    album_artist: str   = tag['aART'][0]
+
+    # アルバムアーティストが設定されているか確認、なければ空文字
+    if 'aART' in tag:
+        album_artist: str   = tag['aART'][0]
+    else:
+        album_artist: str   = ''
 
     # コンピレーションアルバムかどうかのフラグの取得
     is_compilation: bool = tag['cpil']
@@ -161,7 +173,8 @@ def m4a_controller(file_info: FileInfo) -> None:
         album_name=album_name,
         album_artist=album_artist,
         extension=file_info.extension,
-        is_compilation=is_compilation
+        is_compilation=is_compilation,
+        id3_version=-1
     )
     write_to_tsv(tsv_info)
     return
