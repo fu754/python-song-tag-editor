@@ -4,6 +4,10 @@ import glob
 from mutagen.id3 import ID3
 from mutagen.mp4 import MP4, MP4Tags
 from typing import Final, Literal
+from logging import Logger
+from LogController import get_logger
+
+logger: Final[Logger] = get_logger(__name__)
 
 # 読み込み対象のディレクトリ
 SONG_DIRECTORY: Final[str] = 'songs'
@@ -69,13 +73,16 @@ def init_dirs() -> None:
     songsディレクトリ以下のファイルをすべてtmpにコピーする
     """
     if os.path.exists(TMP_DIRECTORY):
+        logger.info(f'Delete directory: {TMP_DIRECTORY}')
         shutil.rmtree(TMP_DIRECTORY)
     os.makedirs(TMP_DIRECTORY)
+    logger.info(f'Created directory: {TMP_DIRECTORY}')
     for file_path in glob.glob(f'{SONG_DIRECTORY}/**/*.*', recursive=True):
         destination_dir: str = os.path.join(TMP_DIRECTORY, os.path.dirname(file_path))
         destination_file_path: str = os.path.join(TMP_DIRECTORY, file_path)
         os.makedirs(destination_dir, exist_ok=True)
         shutil.copy(file_path, destination_file_path)
+        logger.info(f'Copied: {file_path} -> {destination_file_path}')
     return
 
 def init_tsv() -> None:
@@ -90,6 +97,7 @@ def init_tsv() -> None:
     text += '\n'
     with open(SONG_LIST_TSV_PATH, mode='w', encoding='utf_8_sig') as fp:
         fp.write(text)
+    logger.info(f'Created TSV file: {SONG_LIST_TSV_PATH}')
     return
 
 def write_to_tsv(tsv_info: TsvInfo) -> None:
