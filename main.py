@@ -48,7 +48,7 @@ def init_tsv() -> None:
     # 末尾のタブを削除
     text = text.rstrip('\t')
     text += '\n'
-    with open('song_list.tsv', mode='w') as fp:
+    with open(SONG_LIST_TSV_PATH, mode='w') as fp:
         fp.write(text)
     return
 
