@@ -1,8 +1,8 @@
 import os
 import shutil
 import glob
-from mutagen.id3 import ID3
-from mutagen.mp4 import MP4
+from mutagen.id3 import ID3, ID3Tags
+from mutagen.mp4 import MP4, MP4Tags
 from typing import Final
 
 # 読み込み対象のディレクトリ
@@ -16,7 +16,9 @@ TSV_HEADER: Final[list[str]] = [
     'file_path',
     'song_name',
     'artist_name',
-    'album_name'
+    'album_name',
+    'album_artist',
+    'extension'
 ]
 
 class FileInfo():
@@ -48,7 +50,7 @@ def init_tsv() -> None:
     # 末尾のタブを削除
     text = text.rstrip('\t')
     text += '\n'
-    with open(SONG_LIST_TSV_PATH, mode='w') as fp:
+    with open(SONG_LIST_TSV_PATH, mode='w', encoding='utf_8_sig') as fp:
         fp.write(text)
     return
 
@@ -70,11 +72,32 @@ def main() -> None:
     for file_info in file_info_list:
         print(f'-------- Current file: {file_info.file_path}')
         if file_info.extension == 'mp3':
-            tags = ID3(file_info.file_path)
-            print(tags.pprint())
-        if file_info.extension == 'm4a':
-            tags = MP4(file_info.file_path)
-            print(tags.pprint())
+            mp3_info: ID3 = ID3(file_info.file_path)
+            # print(mp3_info.pprint())
+            song_name: str      = mp3_info['TIT2'].text[0]
+            artist_name: str    = mp3_info['TPE1'].text[0]
+            album_name: str     = mp3_info['TALB'].text[0]
+            # アルバムアーティストが設定されているか確認、なければ空文字
+            if 'TPE2' in mp3_info:
+                album_artist: str   = mp3_info['TPE2'].text[0]
+            else:
+                album_artist: str = ''
+            with open(SONG_LIST_TSV_PATH, mode='a', encoding='utf_8_sig') as fp:
+                text: str = f'{file_info.file_path}\t{song_name}\t{artist_name}\t{album_name}\t{album_artist}\t{file_info.extension}\n'
+                fp.write(text)
+        elif file_info.extension == 'm4a':
+            mp4_info: MP4 = MP4(file_info.file_path)
+            # print(mp4_info.pprint())
+            tag: MP4Tags = mp4_info.tags
+            song_name: str      = tag['\xa9nam'][0]
+            artist_name: str    = tag['\xa9ART'][0]
+            album_name: str     = tag['\xa9alb'][0]
+            album_artist: str   = tag['aART'][0]
+            with open(SONG_LIST_TSV_PATH, mode='a', encoding='utf_8_sig') as fp:
+                text: str = f'{file_info.file_path}\t{song_name}\t{artist_name}\t{album_name}\t{album_artist}\t{file_info.extension}\n'
+                fp.write(text)
+        else:
+            pass
     return
 
 if __name__ == '__main__':
