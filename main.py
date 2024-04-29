@@ -10,6 +10,15 @@ SONG_DIRECTORY: Final[str] = 'songs'
 TMP_DIRECTORY: Final[str] = 'tmp'
 TMP_SONG_DIRECTORY: Final[str] = f'{TMP_DIRECTORY}/{SONG_DIRECTORY}'
 
+# tsv書き出し用
+SONG_LIST_TSV_PATH: Final[str] = 'song_list.tsv'
+TSV_HEADER: Final[list[str]] = [
+    'file_path',
+    'song_name',
+    'artist_name',
+    'album_name'
+]
+
 class FileInfo:
     """
     ファイルの情報
@@ -30,6 +39,17 @@ def init_dirs() -> None:
         destination_file_path: str = os.path.join(TMP_DIRECTORY, file_path)
         os.makedirs(destination_dir, exist_ok=True)
         shutil.copy(file_path, destination_file_path)
+    return
+
+def init_tsv() -> None:
+    text: str = ''
+    for h in TSV_HEADER:
+        text += f'{h}\t'
+    # 末尾のタブを削除
+    text = text.rstrip('\t')
+    text += '\n'
+    with open('song_list.tsv', mode='w') as fp:
+        fp.write(text)
     return
 
 def main() -> None:
@@ -59,4 +79,5 @@ def main() -> None:
 
 if __name__ == '__main__':
     init_dirs()
+    init_tsv()
     main()
