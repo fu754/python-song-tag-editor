@@ -1,10 +1,14 @@
+import os
+import shutil
 import glob
 from mutagen.id3 import ID3
 from mutagen.mp4 import MP4
 from typing import Final
 
 # 読み込み対象のディレクトリ
-DIRECTORY: Final[str] = 'songs'
+SONG_DIRECTORY: Final[str] = 'songs'
+TMP_DIRECTORY: Final[str] = 'tmp'
+TMP_SONG_DIRECTORY: Final[str] = f'{TMP_DIRECTORY}/{SONG_DIRECTORY}'
 
 class FileInfo:
     """
@@ -17,13 +21,24 @@ class FileInfo:
         self.file_path = file_path
         self.extension = extension
 
+def init_dirs() -> None:
+    if os.path.exists(TMP_DIRECTORY):
+        shutil.rmtree(TMP_DIRECTORY)
+    os.makedirs(TMP_DIRECTORY)
+    for file_path in glob.glob(f'{SONG_DIRECTORY}/**/*.*', recursive=True):
+        destination_dir: str = os.path.join(TMP_DIRECTORY, os.path.dirname(file_path))
+        destination_file_path: str = os.path.join(TMP_DIRECTORY, file_path)
+        os.makedirs(destination_dir, exist_ok=True)
+        shutil.copy(file_path, destination_file_path)
+    return
+
 def main() -> None:
     """
     メインの処理
     """
     # DIRECTORYディレクトリ以下のファイルパスと拡張子の取得
     file_info_list: list[FileInfo]= []
-    for file_path in glob.glob(f'{DIRECTORY}/*.*', recursive=True):
+    for file_path in glob.glob(f'{TMP_SONG_DIRECTORY}/**/*.*', recursive=True):
         extension: str = file_path.split('.')[-1]
         info: FileInfo = FileInfo(
             file_path=file_path,
@@ -43,4 +58,5 @@ def main() -> None:
     return
 
 if __name__ == '__main__':
+    init_dirs()
     main()
