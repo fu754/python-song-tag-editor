@@ -33,6 +33,10 @@ class FileInfo():
         self.extension = extension
 
 def init_dirs() -> None:
+    """
+    ディレクトリの初期化
+    songsディレクトリ以下のファイルをすべてtmpにコピーする
+    """
     if os.path.exists(TMP_DIRECTORY):
         shutil.rmtree(TMP_DIRECTORY)
     os.makedirs(TMP_DIRECTORY)
@@ -44,6 +48,9 @@ def init_dirs() -> None:
     return
 
 def init_tsv() -> None:
+    """
+    song_list.tsvの初期化
+    """
     text: str = ''
     for h in TSV_HEADER:
         text += f'{h}\t'
