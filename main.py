@@ -116,6 +116,9 @@ def write_to_tsv(tsv_info: TsvInfo) -> None:
     return
 
 def mp3_controller(file_info: FileInfo) -> None:
+    """
+    mp3のとき
+    """
     mp3_info: ID3 = ID3(file_info.file_path)
     print(mp3_info.pprint())
     song_name: str      = mp3_info['TIT2'].text[0]
@@ -157,6 +160,9 @@ def mp3_controller(file_info: FileInfo) -> None:
     return
 
 def m4a_controller(file_info: FileInfo) -> None:
+    """
+    AACフォーマットかApple Losslessフォーマットのとき
+    """
     mp4_info: MP4 = MP4(file_info.file_path)
     print(mp4_info.pprint())
     tag: MP4Tags = mp4_info.tags
@@ -207,6 +213,7 @@ def main() -> None:
         if file_info.extension == 'mp3':
             mp3_controller(file_info)
         elif file_info.extension == 'm4a':
+            # AAC or ALAC
             m4a_controller(file_info)
         else:
             pass
