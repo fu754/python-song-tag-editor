@@ -115,83 +115,93 @@ def write_to_tsv(tsv_info: TsvInfo) -> None:
         fp.write(text)
     return
 
-def mp3_controller(file_info: FileInfo) -> None:
-    """
-    mp3のとき
-    """
-    mp3_info: ID3 = ID3(file_info.file_path)
-    print(mp3_info.pprint())
-    song_name: str      = mp3_info['TIT2'].text[0]
-    artist_name: str    = mp3_info['TPE1'].text[0]
-    album_name: str     = mp3_info['TALB'].text[0]
-    # アルバムアーティストが設定されているか確認、なければ空文字
-    if 'TPE2' in mp3_info:
-        album_artist: str   = mp3_info['TPE2'].text[0]
-    else:
-        album_artist: str = ''
-
-    # コンピレーションアルバムかどうかのフラグの取得
+class MP3Controller():
+    file_info: FileInfo
+    mp3_info: ID3
+    song_name: str
+    artist_name: str
+    album_name: str
+    album_artist: str
     is_compilation: bool
-    if 'TCMP' in mp3_info:
-        _is_compilation: Literal["0", "1"] = mp3_info['TCMP']
-        if _is_compilation == "0":
-            is_compilation: False
-        elif _is_compilation == "1":
-            is_compilation = True
+    version: str
+
+    def __init__(self, file_info: FileInfo) -> None:
+        self.file_info = file_info
+        self.mp3_info: ID3 = ID3(file_info.file_path)
+        self.song_name: str      = self.mp3_info['TIT2'].text[0]
+        self.artist_name: str    = self.mp3_info['TPE1'].text[0]
+        self.album_name: str     = self.mp3_info['TALB'].text[0]
+        # アルバムアーティストが設定されているか確認、なければ空文字
+        if 'TPE2' in self.mp3_info:
+            self.album_artist   = self.mp3_info['TPE2'].text[0]
         else:
-            raise Exception(f'TCMP value: {_is_compilation}')
-    else:
-        is_compilation = False
+            self.album_artist = ''
+        # コンピレーションアルバムかどうかのフラグの取得
+        if 'TCMP' in self.mp3_info:
+            _is_compilation: Literal["0", "1"] = self.mp3_info['TCMP']
+            if _is_compilation == "0":
+                self.is_compilation: False
+            elif _is_compilation == "1":
+                self.is_compilation = True
+            else:
+                raise Exception(f'TCMP value: {_is_compilation}')
+        else:
+            self.is_compilation = False
 
-    version = mp3_info.version[0]
+        # ID3のバージョンを取得
+        self.version = self.mp3_info.version[0]
 
-    # tsvに書き出し
-    tsv_info: TsvInfo = TsvInfo(
-        file_path=file_info.file_path,
-        song_name=song_name,
-        artist_name=artist_name,
-        album_name=album_name,
-        album_artist=album_artist,
-        extension=file_info.extension,
-        is_compilation=is_compilation,
-        id3_version=version
-    )
-    write_to_tsv(tsv_info)
-    return
+        tsv_info: TsvInfo = TsvInfo(
+            file_path=file_info.file_path,
+            song_name=self.song_name,
+            artist_name=self.artist_name,
+            album_name=self.album_name,
+            album_artist=self.album_artist,
+            extension=self.file_info.extension,
+            is_compilation=self.is_compilation,
+            id3_version=self.version
+        )
+        write_to_tsv(tsv_info)
+        return
 
-def m4a_controller(file_info: FileInfo) -> None:
-    """
-    AACフォーマットかApple Losslessフォーマットのとき
-    """
-    mp4_info: MP4 = MP4(file_info.file_path)
-    print(mp4_info.pprint())
-    tag: MP4Tags = mp4_info.tags
-    song_name: str      = tag['\xa9nam'][0]
-    artist_name: str    = tag['\xa9ART'][0]
-    album_name: str     = tag['\xa9alb'][0]
+class M4AController():
+    file_info: FileInfo
+    m4a_info: MP4
+    song_name: str
+    artist_name: str
+    album_name: str
+    album_artist: str
+    is_compilation: bool
+    version: str
 
-    # アルバムアーティストが設定されているか確認、なければ空文字
-    if 'aART' in tag:
-        album_artist: str   = tag['aART'][0]
-    else:
-        album_artist: str   = ''
+    def __init__(self, file_info: FileInfo) -> None:
+        self.file_info = file_info
+        self.mp4_info: MP4 = MP4(file_info.file_path)
+        tag: MP4Tags = self.mp4_info.tags
+        self.song_name: str      = tag['\xa9nam'][0]
+        self.artist_name: str    = tag['\xa9ART'][0]
+        self.album_name: str     = tag['\xa9alb'][0]
+        # アルバムアーティストが設定されているか確認、なければ空文字
+        if 'aART' in tag:
+            self.album_artist = tag['aART'][0]
+        else:
+            self.album_artist = ''
 
-    # コンピレーションアルバムかどうかのフラグの取得
-    is_compilation: bool = tag['cpil']
+        # コンピレーションアルバムかどうかのフラグの取得
+        self.is_compilation: bool = tag['cpil']
 
-    # tsvに書き出し
-    tsv_info: TsvInfo = TsvInfo(
-        file_path=file_info.file_path,
-        song_name=song_name,
-        artist_name=artist_name,
-        album_name=album_name,
-        album_artist=album_artist,
-        extension=file_info.extension,
-        is_compilation=is_compilation,
-        id3_version=-1
-    )
-    write_to_tsv(tsv_info)
-    return
+        tsv_info: TsvInfo = TsvInfo(
+            file_path=file_info.file_path,
+            song_name=self.song_name,
+            artist_name=self.artist_name,
+            album_name=self.album_name,
+            album_artist=self.album_artist,
+            extension=self.file_info.extension,
+            is_compilation=self.is_compilation,
+            id3_version=-1
+        )
+        write_to_tsv(tsv_info)
+        return
 
 def main() -> None:
     """
@@ -199,7 +209,9 @@ def main() -> None:
     """
     # TMP_SONG_DIRECTORYディレクトリ以下のファイルパスと拡張子の取得
     file_info_list: list[FileInfo]= []
-    for file_path in glob.glob(f'{TMP_SONG_DIRECTORY}/**/*.*', recursive=True):
+    for _file_path in glob.glob(f'{TMP_SONG_DIRECTORY}/**/*.*', recursive=True):
+        # スラッシュをバックスラッシュに置き換えて区切り文字を統一
+        file_path: str = _file_path.replace('/', '\\')
         extension: str = file_path.split('.')[-1]
         info: FileInfo = FileInfo(
             file_path=file_path,
@@ -207,14 +219,17 @@ def main() -> None:
         )
         file_info_list.append(info)
 
-    # タグの取得
+    # 同じディレクトリ内に異なるアーティストがあるときに、
+    # コンピレーションアルバムとしてフラグを立てる
+    current_directory_path: str = ''
+    current_artist_name: str = ''
     for file_info in file_info_list:
         print(f'-------- Current file: {file_info.file_path}')
         if file_info.extension == 'mp3':
-            mp3_controller(file_info)
+            controller: MP3Controller = MP3Controller(file_info)
         elif file_info.extension == 'm4a':
             # AAC or ALAC
-            m4a_controller(file_info)
+            controller: M4AController = M4AController(file_info)
         else:
             pass
     return
