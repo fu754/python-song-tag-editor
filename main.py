@@ -15,7 +15,7 @@ DIRECTORY_PATH_DELIMITER: Final[str] = '\\'
 # 読み込み対象のディレクトリ
 SONG_DIRECTORY: Final[str] = 'songs'
 TMP_DIRECTORY: Final[str] = 'tmp'
-TMP_SONG_DIRECTORY: Final[str] = f'{TMP_DIRECTORY}/{SONG_DIRECTORY}'
+TMP_SONG_DIRECTORY: Final[str] = f'{TMP_DIRECTORY}{DIRECTORY_PATH_DELIMITER}{SONG_DIRECTORY}'
 
 # tsv書き出し用
 SONG_LIST_TSV_PATH: Final[str] = 'song_list.tsv'
