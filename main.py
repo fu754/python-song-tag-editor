@@ -10,7 +10,11 @@ from LogController import get_logger
 logger: Final[Logger] = get_logger(__name__)
 
 # 各種定数
+## ディレクトリのパスの区切り文字
 DIRECTORY_PATH_DELIMITER: Final[str] = '\\'
+
+## アルバムアーティストの暫定値、空文字のものをこの値に置き換える
+VARIOUS_ALBUM_ARTIST: Final[str] = 'Various Artist'
 
 # 読み込み対象のディレクトリ
 SONG_DIRECTORY: Final[str] = 'songs'
@@ -119,6 +123,7 @@ def write_to_tsv(tsv_info: TsvInfo) -> None:
     text += '\n'
     with open(SONG_LIST_TSV_PATH, mode='a', encoding='utf_8_sig') as fp:
         fp.write(text)
+    return
 
 class SongController():
     file_info: FileInfo
@@ -255,6 +260,7 @@ def main() -> None:
 
     # 同じディレクトリ内に異なるアーティストがあるときに、
     # コンピレーションアルバムとしてフラグを立てる
+    # アルバムアーティストが空文字だった場合VARIOUS_ALBUM_ARTISTの値に置き換える
     current_directory_path: str = ''
     current_artist_name: str = ''
     for file_info in file_info_list:
