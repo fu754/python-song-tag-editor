@@ -119,93 +119,31 @@ def write_to_tsv(tsv_info: TsvInfo) -> None:
     text += '\n'
     with open(SONG_LIST_TSV_PATH, mode='a', encoding='utf_8_sig') as fp:
         fp.write(text)
-    return
 
-class MP3Controller():
-    """
-    mp3ファイルの操作用
-    """
+class SongController():
     file_info: FileInfo
-    mp3_info: ID3
     song_name: str
     artist_name: str
     album_name: str
     album_artist: str
     is_compilation: bool
-    version: str
+    version: int
 
-    def __init__(self, file_info: FileInfo) -> None:
+    def __init__(self,
+                file_info: FileInfo,
+                song_name: str,
+                artist_name: str,
+                album_name: str,
+                album_artist: str,
+                is_compilation: bool,
+                version: int) -> None:
         self.file_info = file_info
-        self.mp3_info: ID3 = ID3(file_info.file_path)
-        self.song_name: str      = self.mp3_info['TIT2'].text[0]
-        self.artist_name: str    = self.mp3_info['TPE1'].text[0]
-        self.album_name: str     = self.mp3_info['TALB'].text[0]
-        # アルバムアーティストが設定されているか確認、なければ空文字
-        if 'TPE2' in self.mp3_info:
-            self.album_artist   = self.mp3_info['TPE2'].text[0]
-        else:
-            self.album_artist = ''
-        # コンピレーションアルバムかどうかのフラグの取得
-        if 'TCMP' in self.mp3_info:
-            _is_compilation: Literal["0", "1"] = self.mp3_info['TCMP']
-            if _is_compilation == "0":
-                self.is_compilation: False
-            elif _is_compilation == "1":
-                self.is_compilation = True
-            else:
-                raise Exception(f'TCMP value: {_is_compilation}')
-        else:
-            self.is_compilation = False
-
-        # ID3のバージョンを取得
-        self.version = self.mp3_info.version[0]
-
-        tsv_info: TsvInfo = TsvInfo(
-            file_path=file_info.file_path,
-            song_name=self.song_name,
-            artist_name=self.artist_name,
-            album_name=self.album_name,
-            album_artist=self.album_artist,
-            extension=self.file_info.extension,
-            is_compilation=self.is_compilation,
-            id3_version=self.version
-        )
-        write_to_tsv(tsv_info)
-        return
-
-    def get_artist(self) -> str:
-        return self.artist_name
-
-class M4AController():
-    """
-    m4aファイルの操作用
-    AACとALACが取り扱える
-    """
-    file_info: FileInfo
-    m4a_info: MP4
-    song_name: str
-    artist_name: str
-    album_name: str
-    album_artist: str
-    is_compilation: bool
-    version: str
-
-    def __init__(self, file_info: FileInfo) -> None:
-        self.file_info = file_info
-        self.mp4_info: MP4 = MP4(file_info.file_path)
-        tag: MP4Tags = self.mp4_info.tags
-        self.song_name: str      = tag['\xa9nam'][0]
-        self.artist_name: str    = tag['\xa9ART'][0]
-        self.album_name: str     = tag['\xa9alb'][0]
-        # アルバムアーティストが設定されているか確認、なければ空文字
-        if 'aART' in tag:
-            self.album_artist = tag['aART'][0]
-        else:
-            self.album_artist = ''
-
-        # コンピレーションアルバムかどうかのフラグの取得
-        self.is_compilation: bool = tag['cpil']
-
+        self.song_name = song_name
+        self.artist_name = artist_name
+        self.album_name = album_name
+        self.album_artist = album_artist
+        self.is_compilation = is_compilation
+        self.version = version
         tsv_info: TsvInfo = TsvInfo(
             file_path=file_info.file_path,
             song_name=self.song_name,
@@ -221,6 +159,74 @@ class M4AController():
 
     def get_artist(self) -> str:
         return self.artist_name
+
+class MP3Controller(SongController):
+    """
+    mp3ファイルの操作用
+    """
+    def __init__(self, file_info: FileInfo) -> None:
+        mp3_info: ID3 = ID3(file_info.file_path)
+        song_name: str      = mp3_info['TIT2'].text[0]
+        artist_name: str    = mp3_info['TPE1'].text[0]
+        album_name: str     = mp3_info['TALB'].text[0]
+        # アルバムアーティストが設定されているか確認、なければ空文字
+        if 'TPE2' in mp3_info:
+            album_artist   = mp3_info['TPE2'].text[0]
+        else:
+            album_artist = ''
+        # コンピレーションアルバムかどうかのフラグの取得
+        if 'TCMP' in mp3_info:
+            _is_compilation: Literal["0", "1"] = mp3_info['TCMP']
+            if _is_compilation == "0":
+                is_compilation: False
+            elif _is_compilation == "1":
+                is_compilation = True
+            else:
+                raise Exception(f'TCMP value: {_is_compilation}')
+        else:
+            is_compilation = False
+
+        # ID3のバージョンを取得
+        version = mp3_info.version[0]
+
+        super().__init__(file_info,
+                        song_name,
+                        artist_name,
+                        album_name,
+                        album_artist,
+                        is_compilation,
+                        version)
+        return
+
+class M4AController(SongController):
+    """
+    m4aファイルの操作用
+    AACとALACが取り扱える
+    """
+    def __init__(self, file_info: FileInfo) -> None:
+        mp4_info: MP4 = MP4(file_info.file_path)
+        tag: MP4Tags = mp4_info.tags
+        song_name: str      = tag['\xa9nam'][0]
+        artist_name: str    = tag['\xa9ART'][0]
+        album_name: str     = tag['\xa9alb'][0]
+        # アルバムアーティストが設定されているか確認、なければ空文字
+        if 'aART' in tag:
+            album_artist = tag['aART'][0]
+        else:
+            album_artist = ''
+
+        # コンピレーションアルバムかどうかのフラグの取得
+        is_compilation: bool = tag['cpil']
+        version = -1
+
+        super().__init__(file_info,
+                        song_name,
+                        artist_name,
+                        album_name,
+                        album_artist,
+                        is_compilation,
+                        version)
+        return
 
 def get_directory_path(file_path: str) -> tuple[str, str]:
     """
@@ -262,7 +268,7 @@ def main() -> None:
             controller: M4AController = M4AController(file_info)
         else:
             continue
-        current_artist_name: str = controller.get_artist()
+        current_artist_name = controller.get_artist()
     return
 
 if __name__ == '__main__':
