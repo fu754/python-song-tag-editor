@@ -9,6 +9,9 @@ from LogController import get_logger
 
 logger: Final[Logger] = get_logger(__name__)
 
+# 各種定数
+DIRECTORY_PATH_DELIMITER: Final[str] = '\\'
+
 # 読み込み対象のディレクトリ
 SONG_DIRECTORY: Final[str] = 'songs'
 TMP_DIRECTORY: Final[str] = 'tmp'
@@ -101,6 +104,9 @@ def init_tsv() -> None:
     return
 
 def write_to_tsv(tsv_info: TsvInfo) -> None:
+    """
+    tsvに曲情報を書き出す
+    """
     text: str = ''
     text += f'{tsv_info.file_path}\t'
     text += f'{tsv_info.song_name}\t'
@@ -116,6 +122,9 @@ def write_to_tsv(tsv_info: TsvInfo) -> None:
     return
 
 class MP3Controller():
+    """
+    mp3ファイルの操作用
+    """
     file_info: FileInfo
     mp3_info: ID3
     song_name: str
@@ -164,7 +173,14 @@ class MP3Controller():
         write_to_tsv(tsv_info)
         return
 
+    def get_artist(self) -> str:
+        return self.artist_name
+
 class M4AController():
+    """
+    m4aファイルの操作用
+    AACとALACが取り扱える
+    """
     file_info: FileInfo
     m4a_info: MP4
     song_name: str
@@ -203,6 +219,18 @@ class M4AController():
         write_to_tsv(tsv_info)
         return
 
+    def get_artist(self) -> str:
+        return self.artist_name
+
+def get_directory_path(file_path: str) -> tuple[str, str]:
+    """
+    ファイルのパスを入力して、ディレクトリのパスとファイル名を返す
+    """
+    path: list[str] = file_path.split(DIRECTORY_PATH_DELIMITER)
+    directory: str = DIRECTORY_PATH_DELIMITER.join(path[:-1])
+    filename: str = path[-1]
+    return directory, filename
+
 def main() -> None:
     """
     メインの処理
@@ -211,7 +239,7 @@ def main() -> None:
     file_info_list: list[FileInfo]= []
     for _file_path in glob.glob(f'{TMP_SONG_DIRECTORY}/**/*.*', recursive=True):
         # スラッシュをバックスラッシュに置き換えて区切り文字を統一
-        file_path: str = _file_path.replace('/', '\\')
+        file_path: str = _file_path.replace('/', DIRECTORY_PATH_DELIMITER)
         extension: str = file_path.split('.')[-1]
         info: FileInfo = FileInfo(
             file_path=file_path,
@@ -224,14 +252,17 @@ def main() -> None:
     current_directory_path: str = ''
     current_artist_name: str = ''
     for file_info in file_info_list:
-        print(f'-------- Current file: {file_info.file_path}')
+        current_directory_path, current_filename = get_directory_path(file_info.file_path)
+        print(f'-------- Current directory: {current_directory_path}')
+        print(f'-------- Current filename: {current_filename}')
         if file_info.extension == 'mp3':
             controller: MP3Controller = MP3Controller(file_info)
         elif file_info.extension == 'm4a':
             # AAC or ALAC
             controller: M4AController = M4AController(file_info)
         else:
-            pass
+            continue
+        current_artist_name: str = controller.get_artist()
     return
 
 if __name__ == '__main__':
