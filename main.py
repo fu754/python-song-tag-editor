@@ -1,7 +1,7 @@
 import os
 import shutil
 import glob
-from mutagen.id3 import ID3
+from mutagen.id3 import ID3, TPE2, TCMP
 from mutagen.mp4 import MP4, MP4Tags
 from typing import Final, Literal
 from logging import Logger
@@ -22,7 +22,8 @@ TMP_DIRECTORY: Final[str] = 'tmp'
 TMP_SONG_DIRECTORY: Final[str] = f'{TMP_DIRECTORY}{DIRECTORY_PATH_DELIMITER}{SONG_DIRECTORY}'
 
 # tsv書き出し用
-SONG_LIST_TSV_PATH: Final[str] = 'song_list.tsv'
+SONG_LIST_TSV_PATH_BEFORE: Final[str] = 'song_list_before.tsv'
+SONG_LIST_TSV_PATH_AFTER: Final[str] = 'song_list_after.tsv'
 TSV_HEADER: Final[list[str]] = [
     'file_path',
     'song_name',
@@ -102,12 +103,15 @@ def init_tsv() -> None:
     # 末尾のタブを削除
     text = text.rstrip('\t')
     text += '\n'
-    with open(SONG_LIST_TSV_PATH, mode='w', encoding='utf_8_sig') as fp:
+    with open(SONG_LIST_TSV_PATH_BEFORE, mode='w', encoding='utf_8_sig') as fp:
         fp.write(text)
-    logger.info(f'Created TSV file: {SONG_LIST_TSV_PATH}')
+    logger.info(f'Created TSV file: {SONG_LIST_TSV_PATH_BEFORE}')
+    with open(SONG_LIST_TSV_PATH_AFTER, mode='w', encoding='utf_8_sig') as fp:
+        fp.write(text)
+    logger.info(f'Created TSV file: {SONG_LIST_TSV_PATH_AFTER}')
     return
 
-def write_to_tsv(tsv_info: TsvInfo) -> None:
+def write_to_tsv(tsv_info: TsvInfo, filename: str) -> None:
     """
     tsvに曲情報を書き出す
     """
@@ -121,7 +125,7 @@ def write_to_tsv(tsv_info: TsvInfo) -> None:
     text += f'{tsv_info.is_compilation}\t'
     text += f'{tsv_info.id3_version}'
     text += '\n'
-    with open(SONG_LIST_TSV_PATH, mode='a', encoding='utf_8_sig') as fp:
+    with open(filename, mode='a', encoding='utf_8_sig') as fp:
         fp.write(text)
     return
 
@@ -141,7 +145,8 @@ class SongController():
                 album_name: str,
                 album_artist: str,
                 is_compilation: bool,
-                version: int) -> None:
+                version: int,
+                is_proccessed: bool) -> None:
         self.file_info = file_info
         self.song_name = song_name
         self.artist_name = artist_name
@@ -159,17 +164,25 @@ class SongController():
             is_compilation=self.is_compilation,
             id3_version=-1
         )
-        write_to_tsv(tsv_info)
+        filename: str
+        if is_proccessed:
+            filename = SONG_LIST_TSV_PATH_AFTER
+        else:
+            filename = SONG_LIST_TSV_PATH_BEFORE
+        write_to_tsv(tsv_info, filename)
         return
 
     def get_artist(self) -> str:
         return self.artist_name
 
+    def get_album_artist(self) -> str:
+        return self.album_artist
+
 class MP3Controller(SongController):
     """
     mp3ファイルの操作用
     """
-    def __init__(self, file_info: FileInfo) -> None:
+    def __init__(self, file_info: FileInfo, is_proccessed: bool) -> None:
         mp3_info: ID3 = ID3(file_info.file_path)
         song_name: str      = mp3_info['TIT2'].text[0]
         artist_name: str    = mp3_info['TPE1'].text[0]
@@ -200,7 +213,8 @@ class MP3Controller(SongController):
                         album_name,
                         album_artist,
                         is_compilation,
-                        version)
+                        version,
+                        is_proccessed)
         return
 
 class M4AController(SongController):
@@ -208,7 +222,7 @@ class M4AController(SongController):
     m4aファイルの操作用
     AACとALACが取り扱える
     """
-    def __init__(self, file_info: FileInfo) -> None:
+    def __init__(self, file_info: FileInfo, is_proccessed: bool) -> None:
         mp4_info: MP4 = MP4(file_info.file_path)
         tag: MP4Tags = mp4_info.tags
         song_name: str      = tag['\xa9nam'][0]
@@ -230,7 +244,8 @@ class M4AController(SongController):
                         album_name,
                         album_artist,
                         is_compilation,
-                        version)
+                        version,
+                        is_proccessed)
         return
 
 def get_directory_path(file_path: str) -> tuple[str, str]:
@@ -241,6 +256,30 @@ def get_directory_path(file_path: str) -> tuple[str, str]:
     directory: str = DIRECTORY_PATH_DELIMITER.join(path[:-1])
     filename: str = path[-1]
     return directory, filename
+
+def change_various_artist_in_same_dirs(dir_name: str):
+    for _file_path in glob.glob(f'{dir_name}/*.*'):
+        file_path: str = _file_path.replace('/', DIRECTORY_PATH_DELIMITER)
+        extension: str = file_path.split('.')[-1]
+        file_info: FileInfo = FileInfo(
+            file_path=file_path,
+            extension=extension
+        )
+        if file_info.extension == 'mp3':
+            mp3_info: ID3 = ID3(file_info.file_path)
+            mp3_info.add(TPE2(encoding=3, text=VARIOUS_ALBUM_ARTIST))
+            mp3_info.add(TCMP(encoding=3, text="1"))
+            mp3_info.save()
+            logger.info(f'Change tags: {file_info.file_path}')
+        elif file_info.extension == 'm4a':
+            # AAC or ALAC
+            mp4_info: MP4 = MP4(file_info.file_path)
+            mp4_info['cpil'] = True
+            mp4_info['aART'] = VARIOUS_ALBUM_ARTIST
+            mp4_info.save()
+            logger.info(f'Change tags: {file_info.file_path}')
+        else:
+            continue
 
 def main() -> None:
     """
@@ -262,22 +301,75 @@ def main() -> None:
     # コンピレーションアルバムとしてフラグを立てる
     # アルバムアーティストが空文字だった場合VARIOUS_ALBUM_ARTISTの値に置き換える
     current_directory_path: str = ''
+    before_directory_path: str = ''
     current_artist_name: str = ''
+    before_artist_name: str = ''
+    is_processed_dir: bool = False # そのディレクトリが処理済みかどうか
     for file_info in file_info_list:
         current_directory_path, current_filename = get_directory_path(file_info.file_path)
-        print(f'-------- Current directory: {current_directory_path}')
-        print(f'-------- Current filename: {current_filename}')
         if file_info.extension == 'mp3':
-            controller: MP3Controller = MP3Controller(file_info)
+            controller: MP3Controller = MP3Controller(file_info, False)
         elif file_info.extension == 'm4a':
             # AAC or ALAC
-            controller: M4AController = M4AController(file_info)
+            controller: M4AController = M4AController(file_info, False)
         else:
             continue
         current_artist_name = controller.get_artist()
+
+        # input()
+        print('---------------')
+        print(f'Current directory: {current_directory_path}')
+        print(f'Current filename: {current_filename}')
+        print(f'Before Dir path: {before_directory_path}')
+        print(f'Current Dir path: {current_directory_path}')
+        print(f'Before artist: {before_artist_name}')
+        print(f'Current artist: {current_artist_name}')
+        print(f'Proccessed: {is_processed_dir}')
+
+        if before_directory_path == '':
+            # 1周目のみ、変数を初期化して次の曲へ進む
+            before_directory_path = current_directory_path
+            before_artist_name = current_artist_name
+            continue
+
+        if before_directory_path != current_directory_path:
+            # 次のディレクトリに移った時
+            # 変数の初期化＆処理済みディレクトリフラグをFalseにして次の曲へ進む
+            before_directory_path = current_directory_path
+            before_artist_name = current_artist_name
+            is_processed_dir = False
+            continue
+
+        if is_processed_dir:
+            # 同じディレクトリ内の曲かつ、処理済みディレクトリの時は何もせずに次の曲へ進む
+            continue
+
+        if before_directory_path == current_directory_path:
+            """
+            ●同じディレクトリ内のファイルのとき
+            1つ前の曲と現在の曲のアーティスト名を比較する
+            ・異なっていた場合かつアルバムアーティストが空欄の場合：
+                そのディレクトリ内のすべての曲のコンピレーションアルバムのフラグを立てて、
+                ARIOUS_ALBUM_ARTISTをアルバムアーティストに設定する
+                そのディレクトリの処理は終了する
+            ・同じ場合：
+                何もせず次の曲へ進む
+            """
+            if before_artist_name != current_artist_name:
+                if controller.get_album_artist() == '':
+                    change_various_artist_in_same_dirs(current_directory_path)
+                    is_processed_dir = True
+                else:
+                    before_directory_path = current_directory_path
+                    before_artist_name = current_artist_name
+                    continue
+            else:
+                before_directory_path = current_directory_path
+                before_artist_name = current_artist_name
+                continue
     return
 
 if __name__ == '__main__':
-    # init_dirs()
+    init_dirs()
     init_tsv()
     main()
