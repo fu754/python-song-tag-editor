@@ -90,9 +90,9 @@ def init_dirs() -> None:
     for file_path in glob.glob(f'{SONG_DIRECTORY}/**/*.*', recursive=True):
         destination_dir: str = os.path.join(TMP_DIRECTORY, os.path.dirname(file_path))
         destination_file_path: str = os.path.join(TMP_DIRECTORY, file_path)
-        os.makedirs(destination_dir, exist_ok=True)
-        shutil.copy(file_path, destination_file_path)
         logger.info(f'Copied: {file_path} -> {destination_file_path}')
+        os.makedirs(destination_dir, exist_ok=True)
+        shutil.copy(file_path, destination_file_path, )
     return
 
 def init_tsv() -> None:
