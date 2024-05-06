@@ -257,15 +257,8 @@ def get_directory_path(file_path: str) -> tuple[str, str]:
     return directory, filename
 
 def change_tags_in_same_dirs(dir_name: str, is_change_album_artist: bool, is_change_compilation: bool):
-    dir_name = glob.escape(dir_name)
-    for _file_path in glob.glob(f'{dir_name}/**/*.*', recursive=True):
-        file_path: str = _file_path.replace('/', DIRECTORY_PATH_DELIMITER)
-        extension: str = file_path.split('.')[-1]
-        file_info: FileInfo = FileInfo(
-            file_path=file_path,
-            extension=extension
-        )
-
+    file_info_list: list[FileInfo] = create_file_info_list(TMP_SONG_DIRECTORY)
+    for file_info in file_info_list:
         if file_info.extension == 'mp3':
             mp3_info: ID3 = ID3(file_info.file_path)
             if is_change_album_artist:
@@ -286,13 +279,10 @@ def change_tags_in_same_dirs(dir_name: str, is_change_album_artist: bool, is_cha
         else:
             continue
 
-def main() -> None:
-    """
-    メインの処理
-    """
-    # TMP_SONG_DIRECTORYディレクトリ以下のファイルパスと拡張子の取得
+def create_file_info_list(dir_path: str) -> list[FileInfo]:
     file_info_list: list[FileInfo]= []
-    for _file_path in glob.glob(f'{TMP_SONG_DIRECTORY}/**/*.*', recursive=True):
+    _dir_path = glob.escape(dir_path)
+    for _file_path in glob.glob(f'{_dir_path}/**/*.*', recursive=True):
         # スラッシュをバックスラッシュに置き換えて区切り文字を統一
         file_path: str = _file_path.replace('/', DIRECTORY_PATH_DELIMITER)
         extension: str = file_path.split('.')[-1]
@@ -301,10 +291,17 @@ def main() -> None:
             extension=extension
         )
         file_info_list.append(info)
+    return file_info_list
+
+def main() -> None:
+    """
+    メインの処理
+    """
+    # TMP_SONG_DIRECTORYディレクトリ以下のファイルパスと拡張子の取得
+    file_info_list: list[FileInfo] = create_file_info_list(TMP_SONG_DIRECTORY)
 
     # 処理前の結果をtsvに書き出す
     for file_info in file_info_list:
-        current_directory_path, current_filename = get_directory_path(file_info.file_path)
         if file_info.extension == 'mp3':
             controller: MP3Controller = MP3Controller(file_info, SONG_LIST_TSV_PATH_BEFORE)
         elif file_info.extension == 'm4a':
@@ -325,7 +322,6 @@ def main() -> None:
         if file_info.extension == 'mp3':
             controller: MP3Controller = MP3Controller(file_info, None)
         elif file_info.extension == 'm4a':
-            # AAC or ALAC
             controller: M4AController = M4AController(file_info, None)
         else:
             continue
@@ -395,7 +391,6 @@ def main() -> None:
 
     # 処理結果をafterのtsvに書き出す
     for file_info in file_info_list:
-        current_directory_path, current_filename = get_directory_path(file_info.file_path)
         if file_info.extension == 'mp3':
             controller: MP3Controller = MP3Controller(file_info, SONG_LIST_TSV_PATH_AFTER)
         elif file_info.extension == 'm4a':
