@@ -47,7 +47,6 @@ class TsvInfo():
     album_artist: str
     extension: str
     is_compilation: bool
-    id3_version: int
 
     def __init__(self,
             file_path: str,
@@ -125,7 +124,7 @@ def write_to_tsv(tsv_info: TsvInfo, filename: str) -> None:
     text += f'{tsv_info.album_name}\t'
     text += f'{tsv_info.album_artist}\t'
     text += f'{tsv_info.extension}\t'
-    text += f'{tsv_info.is_compilation}\t'
+    text += f'{tsv_info.is_compilation}'
     text += '\n'
     with open(filename, mode='a', encoding='utf_8_sig') as fp:
         fp.write(text)
