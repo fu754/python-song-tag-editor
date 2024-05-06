@@ -7,6 +7,7 @@ from typing import Final, Literal, Union
 from logging import Logger
 from LogController import get_logger
 
+# ロガー
 logger: Final[Logger] = get_logger(__name__)
 
 # 各種定数
@@ -31,11 +32,14 @@ TSV_HEADER: Final[list[str]] = [
     'album_name',
     'album_artist',
     'extension',
-    'is_compilation',
-    'id3_version'
+    'is_compilation'
 ]
 
 class TsvInfo():
+    """
+    tsvファイルに入れる情報
+    TSV_HEADERと合わせること
+    """
     file_path: str
     song_name: str
     artist_name: str
@@ -52,8 +56,7 @@ class TsvInfo():
             album_name: str,
             album_artist: str,
             extension: str,
-            is_compilation: bool,
-            id3_version: int):
+            is_compilation: bool):
         self.file_path = file_path
         self.song_name = song_name
         self.artist_name = artist_name
@@ -61,7 +64,6 @@ class TsvInfo():
         self.album_artist = album_artist
         self.extension = extension
         self.is_compilation = is_compilation
-        self.id3_version = id3_version
         return
 
 class FileInfo():
@@ -79,6 +81,7 @@ def init_dirs() -> None:
     """
     ディレクトリの初期化
     songsディレクトリ以下のファイルをすべてtmpにコピーする
+    タグの書き換えはtmp内のファイルに対して行う
     """
     if os.path.exists(TMP_DIRECTORY):
         logger.info(f'Delete directory: {TMP_DIRECTORY}')
@@ -105,10 +108,10 @@ def init_tsv() -> None:
     text += '\n'
     with open(SONG_LIST_TSV_PATH_BEFORE, mode='w', encoding='utf_8_sig') as fp:
         fp.write(text)
-    logger.info(f'Created TSV file: {SONG_LIST_TSV_PATH_BEFORE}')
+        logger.info(f'Created TSV file: {SONG_LIST_TSV_PATH_BEFORE}')
     with open(SONG_LIST_TSV_PATH_AFTER, mode='w', encoding='utf_8_sig') as fp:
         fp.write(text)
-    logger.info(f'Created TSV file: {SONG_LIST_TSV_PATH_AFTER}')
+        logger.info(f'Created TSV file: {SONG_LIST_TSV_PATH_AFTER}')
     return
 
 def write_to_tsv(tsv_info: TsvInfo, filename: str) -> None:
@@ -123,20 +126,21 @@ def write_to_tsv(tsv_info: TsvInfo, filename: str) -> None:
     text += f'{tsv_info.album_artist}\t'
     text += f'{tsv_info.extension}\t'
     text += f'{tsv_info.is_compilation}\t'
-    text += f'{tsv_info.id3_version}'
     text += '\n'
     with open(filename, mode='a', encoding='utf_8_sig') as fp:
         fp.write(text)
     return
 
 class SongController():
+    """
+    曲情報
+    """
     file_info: FileInfo
     song_name: str
     artist_name: str
     album_name: str
     album_artist: str
     is_compilation: bool
-    version: int
 
     def __init__(self,
                 file_info: FileInfo,
@@ -145,7 +149,6 @@ class SongController():
                 album_name: str,
                 album_artist: str,
                 is_compilation: bool,
-                version: int,
                 filename: Union[str, None]) -> None:
         self.file_info = file_info
         self.song_name = song_name
@@ -153,7 +156,6 @@ class SongController():
         self.album_name = album_name
         self.album_artist = album_artist
         self.is_compilation = is_compilation
-        self.version = version
         tsv_info: TsvInfo = TsvInfo(
             file_path=file_info.file_path,
             song_name=self.song_name,
@@ -161,9 +163,7 @@ class SongController():
             album_name=self.album_name,
             album_artist=self.album_artist,
             extension=self.file_info.extension,
-            is_compilation=self.is_compilation,
-            id3_version=-1
-        )
+            is_compilation=self.is_compilation)
         if not filename == None:
             write_to_tsv(tsv_info, filename)
         return
@@ -181,7 +181,7 @@ class MP3Controller(SongController):
     """
     mp3ファイルの操作用
     """
-    def __init__(self, file_info: FileInfo, filename: Union[str, None]) -> None:
+    def __init__(self, file_info: FileInfo, tsv_filename: Union[str, None]) -> None:
         mp3_info: ID3 = ID3(file_info.file_path)
         song_name: str      = mp3_info['TIT2'].text[0]
         artist_name: str    = mp3_info['TPE1'].text[0]
@@ -203,25 +203,21 @@ class MP3Controller(SongController):
         else:
             is_compilation = False
 
-        # ID3のバージョンを取得
-        version = mp3_info.version[0]
-
         super().__init__(file_info,
                         song_name,
                         artist_name,
                         album_name,
                         album_artist,
                         is_compilation,
-                        version,
-                        filename)
+                        tsv_filename)
         return
 
 class M4AController(SongController):
     """
     m4aファイルの操作用
-    AACとALACが取り扱える
+    iTunesで作ったAACとALACが取り扱える
     """
-    def __init__(self, file_info: FileInfo, filename: Union[str, None]) -> None:
+    def __init__(self, file_info: FileInfo, tsv_filename: Union[str, None]) -> None:
         mp4_info: MP4 = MP4(file_info.file_path)
         tag: MP4Tags = mp4_info.tags
         song_name: str      = tag['\xa9nam'][0]
@@ -235,7 +231,6 @@ class M4AController(SongController):
 
         # コンピレーションアルバムかどうかのフラグの取得
         is_compilation: bool = tag['cpil']
-        version = -1
 
         super().__init__(file_info,
                         song_name,
@@ -243,8 +238,7 @@ class M4AController(SongController):
                         album_name,
                         album_artist,
                         is_compilation,
-                        version,
-                        filename)
+                        tsv_filename)
         return
 
 def get_directory_path(file_path: str) -> tuple[str, str]:
@@ -257,7 +251,7 @@ def get_directory_path(file_path: str) -> tuple[str, str]:
     return directory, filename
 
 def change_tags_in_same_dirs(dir_name: str, is_change_album_artist: bool, is_change_compilation: bool):
-    file_info_list: list[FileInfo] = create_file_info_list(TMP_SONG_DIRECTORY)
+    file_info_list: list[FileInfo] = create_file_info_list(dir_name)
     for file_info in file_info_list:
         if file_info.extension == 'mp3':
             mp3_info: ID3 = ID3(file_info.file_path)
@@ -316,7 +310,6 @@ def main() -> None:
     before_directory_path: str = ''
     current_artist_name: str = ''
     before_artist_name: str = ''
-    is_processed_dir: bool = False # そのディレクトリが処理済みかどうか
     for file_info in file_info_list:
         current_directory_path, current_filename = get_directory_path(file_info.file_path)
         if file_info.extension == 'mp3':
@@ -335,7 +328,6 @@ def main() -> None:
         print(f'Current Dir path: {current_directory_path}')
         print(f'Before artist: {before_artist_name}')
         print(f'Current artist: {current_artist_name}')
-        print(f'Proccessed: {is_processed_dir}')
 
         if before_directory_path == '':
             # 1周目のみ、変数を初期化して次の曲へ進む
@@ -348,21 +340,21 @@ def main() -> None:
             # 変数の初期化＆処理済みディレクトリフラグをFalseにして次の曲へ進む
             before_directory_path = current_directory_path
             before_artist_name = current_artist_name
-            is_processed_dir = False
-            continue
-
-        if is_processed_dir:
-            # 同じディレクトリ内の曲かつ、処理済みディレクトリの時は何もせずに次の曲へ進む
             continue
 
         if before_directory_path == current_directory_path:
             """
             ●同じディレクトリ内のファイルのとき
             1つ前の曲と現在の曲のアーティスト名を比較する
-            ・異なっていた場合かつアルバムアーティストが空欄の場合：
-                そのディレクトリ内のすべての曲のコンピレーションアルバムのフラグを立てて、
-                ARIOUS_ALBUM_ARTISTをアルバムアーティストに設定する
-                そのディレクトリの処理は終了する
+            ・異なっていた場合：
+                - アルバムアーティストが空欄でコンピレーション
+                    ARIOUS_ALBUM_ARTISTをアルバムアーティストに設定する
+                - アルバムアーティストが空欄でコンピレーションではない
+                    ARIOUS_ALBUM_ARTISTをアルバムアーティストに設定し、コンピレーションのフラグを立てる
+                - アルバムアーティストが設定済みで、かつコンピレーション
+                    何もせず次の曲へ進む
+                - アルバムアーティストが設定済みだがコンピレーションではない
+                    コンピレーションのフラグを立てる
             ・同じ場合：
                 何もせず次の曲へ進む
             """
@@ -373,21 +365,15 @@ def main() -> None:
                 print(f'> Compilation: {is_compilation}')
                 if album_artist == '' and is_compilation == True:
                     change_tags_in_same_dirs(current_directory_path, True, False)
-                    is_processed_dir = True
                 elif album_artist == '' and is_compilation == False:
                     change_tags_in_same_dirs(current_directory_path, True, True)
-                    is_processed_dir = True
                 elif album_artist != '' and is_compilation == True:
-                    before_directory_path = current_directory_path
-                    before_artist_name = current_artist_name
-                    continue
+                    pass
                 elif album_artist != '' and is_compilation == False:
                     change_tags_in_same_dirs(current_directory_path, False, True)
-                    is_processed_dir = True
-            else:
-                before_directory_path = current_directory_path
-                before_artist_name = current_artist_name
-                continue
+            before_directory_path = current_directory_path
+            before_artist_name = current_artist_name
+            continue
 
     # 処理結果をafterのtsvに書き出す
     for file_info in file_info_list:
