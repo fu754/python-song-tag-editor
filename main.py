@@ -249,7 +249,7 @@ def get_directory_path(file_path: str) -> tuple[str, str]:
     filename: str = path[-1]
     return directory, filename
 
-def change_tags_in_same_dirs(dir_name: str, is_change_album_artist: bool, is_change_compilation: bool):
+def change_tags_in_same_dirs(dir_name: str, is_change_album_artist: bool, is_change_compilation: bool) -> None:
     """
     タグの書き換え
     """
@@ -274,6 +274,7 @@ def change_tags_in_same_dirs(dir_name: str, is_change_album_artist: bool, is_cha
             logger.info(f'Change tags: {file_info.file_path}')
         else:
             continue
+    return
 
 def create_file_info_list(dir_path: str) -> list[FileInfo]:
     """
