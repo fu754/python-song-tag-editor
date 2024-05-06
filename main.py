@@ -251,6 +251,9 @@ def get_directory_path(file_path: str) -> tuple[str, str]:
     return directory, filename
 
 def change_tags_in_same_dirs(dir_name: str, is_change_album_artist: bool, is_change_compilation: bool):
+    """
+    タグの書き換え
+    """
     file_info_list: list[FileInfo] = create_file_info_list(dir_name)
     for file_info in file_info_list:
         if file_info.extension == 'mp3':
@@ -274,8 +277,13 @@ def change_tags_in_same_dirs(dir_name: str, is_change_album_artist: bool, is_cha
             continue
 
 def create_file_info_list(dir_path: str) -> list[FileInfo]:
-    file_info_list: list[FileInfo]= []
+    """
+    ファイル一覧の作成
+    """
+    # エスケープしないと[Disc 1]などがディレクトリ名に含まれているときに読み込めない
     _dir_path = glob.escape(dir_path)
+
+    file_info_list: list[FileInfo]= []
     for _file_path in glob.glob(f'{_dir_path}/**/*.*', recursive=True):
         # スラッシュをバックスラッシュに置き換えて区切り文字を統一
         file_path: str = _file_path.replace('/', DIRECTORY_PATH_DELIMITER)
