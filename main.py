@@ -3,7 +3,7 @@ import shutil
 import glob
 from mutagen.id3 import ID3, TPE2, TCMP
 from mutagen.mp4 import MP4, MP4Tags
-from typing import Final, Literal
+from typing import Final, Literal, Union
 from logging import Logger
 from LogController import get_logger
 
@@ -146,7 +146,7 @@ class SongController():
                 album_artist: str,
                 is_compilation: bool,
                 version: int,
-                is_proccessed: bool) -> None:
+                filename: Union[str, None]) -> None:
         self.file_info = file_info
         self.song_name = song_name
         self.artist_name = artist_name
@@ -164,12 +164,8 @@ class SongController():
             is_compilation=self.is_compilation,
             id3_version=-1
         )
-        filename: str
-        if is_proccessed:
-            filename = SONG_LIST_TSV_PATH_AFTER
-        else:
-            filename = SONG_LIST_TSV_PATH_BEFORE
-        write_to_tsv(tsv_info, filename)
+        if not filename == None:
+            write_to_tsv(tsv_info, filename)
         return
 
     def get_artist(self) -> str:
@@ -178,11 +174,14 @@ class SongController():
     def get_album_artist(self) -> str:
         return self.album_artist
 
+    def get_compilation(self) -> bool:
+        return self.is_compilation
+
 class MP3Controller(SongController):
     """
     mp3ファイルの操作用
     """
-    def __init__(self, file_info: FileInfo, is_proccessed: bool) -> None:
+    def __init__(self, file_info: FileInfo, filename: Union[str, None]) -> None:
         mp3_info: ID3 = ID3(file_info.file_path)
         song_name: str      = mp3_info['TIT2'].text[0]
         artist_name: str    = mp3_info['TPE1'].text[0]
@@ -214,7 +213,7 @@ class MP3Controller(SongController):
                         album_artist,
                         is_compilation,
                         version,
-                        is_proccessed)
+                        filename)
         return
 
 class M4AController(SongController):
@@ -222,7 +221,7 @@ class M4AController(SongController):
     m4aファイルの操作用
     AACとALACが取り扱える
     """
-    def __init__(self, file_info: FileInfo, is_proccessed: bool) -> None:
+    def __init__(self, file_info: FileInfo, filename: Union[str, None]) -> None:
         mp4_info: MP4 = MP4(file_info.file_path)
         tag: MP4Tags = mp4_info.tags
         song_name: str      = tag['\xa9nam'][0]
@@ -245,7 +244,7 @@ class M4AController(SongController):
                         album_artist,
                         is_compilation,
                         version,
-                        is_proccessed)
+                        filename)
         return
 
 def get_directory_path(file_path: str) -> tuple[str, str]:
@@ -257,25 +256,31 @@ def get_directory_path(file_path: str) -> tuple[str, str]:
     filename: str = path[-1]
     return directory, filename
 
-def change_various_artist_in_same_dirs(dir_name: str):
-    for _file_path in glob.glob(f'{dir_name}/*.*'):
+def change_tags_in_same_dirs(dir_name: str, is_change_album_artist: bool, is_change_compilation: bool):
+    dir_name = glob.escape(dir_name)
+    for _file_path in glob.glob(f'{dir_name}/**/*.*', recursive=True):
         file_path: str = _file_path.replace('/', DIRECTORY_PATH_DELIMITER)
         extension: str = file_path.split('.')[-1]
         file_info: FileInfo = FileInfo(
             file_path=file_path,
             extension=extension
         )
+
         if file_info.extension == 'mp3':
             mp3_info: ID3 = ID3(file_info.file_path)
-            mp3_info.add(TPE2(encoding=3, text=VARIOUS_ALBUM_ARTIST))
-            mp3_info.add(TCMP(encoding=3, text="1"))
+            if is_change_album_artist:
+                mp3_info.add(TPE2(encoding=3, text=VARIOUS_ALBUM_ARTIST))
+            if is_change_compilation:
+                mp3_info.add(TCMP(encoding=3, text="1"))
             mp3_info.save()
             logger.info(f'Change tags: {file_info.file_path}')
         elif file_info.extension == 'm4a':
             # AAC or ALAC
             mp4_info: MP4 = MP4(file_info.file_path)
-            mp4_info['cpil'] = True
-            mp4_info['aART'] = VARIOUS_ALBUM_ARTIST
+            if is_change_album_artist:
+                mp4_info['aART'] = VARIOUS_ALBUM_ARTIST
+            if is_change_compilation:
+                mp4_info['cpil'] = True
             mp4_info.save()
             logger.info(f'Change tags: {file_info.file_path}')
         else:
@@ -297,6 +302,16 @@ def main() -> None:
         )
         file_info_list.append(info)
 
+    # 処理前の結果をtsvに書き出す
+    for file_info in file_info_list:
+        current_directory_path, current_filename = get_directory_path(file_info.file_path)
+        if file_info.extension == 'mp3':
+            controller: MP3Controller = MP3Controller(file_info, SONG_LIST_TSV_PATH_BEFORE)
+        elif file_info.extension == 'm4a':
+            controller: M4AController = M4AController(file_info, SONG_LIST_TSV_PATH_BEFORE)
+        else:
+            continue
+
     # 同じディレクトリ内に異なるアーティストがあるときに、
     # コンピレーションアルバムとしてフラグを立てる
     # アルバムアーティストが空文字だった場合VARIOUS_ALBUM_ARTISTの値に置き換える
@@ -308,10 +323,10 @@ def main() -> None:
     for file_info in file_info_list:
         current_directory_path, current_filename = get_directory_path(file_info.file_path)
         if file_info.extension == 'mp3':
-            controller: MP3Controller = MP3Controller(file_info, False)
+            controller: MP3Controller = MP3Controller(file_info, None)
         elif file_info.extension == 'm4a':
             # AAC or ALAC
-            controller: M4AController = M4AController(file_info, False)
+            controller: M4AController = M4AController(file_info, None)
         else:
             continue
         current_artist_name = controller.get_artist()
@@ -356,17 +371,37 @@ def main() -> None:
                 何もせず次の曲へ進む
             """
             if before_artist_name != current_artist_name:
-                if controller.get_album_artist() == '':
-                    change_various_artist_in_same_dirs(current_directory_path)
+                album_artist = controller.get_album_artist()
+                is_compilation = controller.get_compilation()
+                print(f'> Album artist: {album_artist} (len: {len(album_artist)})')
+                print(f'> Compilation: {is_compilation}')
+                if album_artist == '' and is_compilation == True:
+                    change_tags_in_same_dirs(current_directory_path, True, False)
                     is_processed_dir = True
-                else:
+                elif album_artist == '' and is_compilation == False:
+                    change_tags_in_same_dirs(current_directory_path, True, True)
+                    is_processed_dir = True
+                elif album_artist != '' and is_compilation == True:
                     before_directory_path = current_directory_path
                     before_artist_name = current_artist_name
                     continue
+                elif album_artist != '' and is_compilation == False:
+                    change_tags_in_same_dirs(current_directory_path, False, True)
+                    is_processed_dir = True
             else:
                 before_directory_path = current_directory_path
                 before_artist_name = current_artist_name
                 continue
+
+    # 処理結果をafterのtsvに書き出す
+    for file_info in file_info_list:
+        current_directory_path, current_filename = get_directory_path(file_info.file_path)
+        if file_info.extension == 'mp3':
+            controller: MP3Controller = MP3Controller(file_info, SONG_LIST_TSV_PATH_AFTER)
+        elif file_info.extension == 'm4a':
+            controller: M4AController = M4AController(file_info, SONG_LIST_TSV_PATH_AFTER)
+        else:
+            continue
     return
 
 if __name__ == '__main__':
