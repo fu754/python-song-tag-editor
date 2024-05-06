@@ -90,9 +90,9 @@ def init_dirs() -> None:
     for file_path in glob.glob(f'{SONG_DIRECTORY}/**/*.*', recursive=True):
         destination_dir: str = os.path.join(TMP_DIRECTORY, os.path.dirname(file_path))
         destination_file_path: str = os.path.join(TMP_DIRECTORY, file_path)
-        os.makedirs(destination_dir, exist_ok=True)
-        shutil.copy(file_path, destination_file_path)
         logger.info(f'Copied: {file_path} -> {destination_file_path}')
+        os.makedirs(destination_dir, exist_ok=True)
+        shutil.copy(file_path, destination_file_path, )
     return
 
 def init_tsv() -> None:
@@ -182,20 +182,42 @@ class MP3Controller(SongController):
     """
     def __init__(self, file_info: FileInfo, tsv_filename: Union[str, None]) -> None:
         mp3_info: ID3 = ID3(file_info.file_path)
-        song_name: str      = mp3_info['TIT2'].text[0]
-        artist_name: str    = mp3_info['TPE1'].text[0]
-        album_name: str     = mp3_info['TALB'].text[0]
+
+        # 曲名
+        song_name: str
+        if 'TIT2' in mp3_info:
+            song_name = mp3_info['TIT2'].text[0]
+        else:
+            song_name = ''
+
+        # アーティスト名
+        artist_name: str
+        if 'TPE1' in mp3_info:
+            artist_name = mp3_info['TPE1'].text[0]
+        else:
+            artist_name = ''
+
+        # アルバム名
+        album_name: str
+        if 'TALB' in mp3_info:
+            album_name = mp3_info['TALB'].text[0]
+        else:
+            album_name = ''
+
         # アルバムアーティストが設定されているか確認、なければ空文字
+        album_artist: str
         if 'TPE2' in mp3_info:
-            album_artist   = mp3_info['TPE2'].text[0]
+            album_artist = mp3_info['TPE2'].text[0]
         else:
             album_artist = ''
+
         # コンピレーションアルバムかどうかのフラグの取得
+        is_compilation: bool
         if 'TCMP' in mp3_info:
-            _is_compilation: Literal["0", "1"] = mp3_info['TCMP']
-            if _is_compilation == "0":
-                is_compilation: False
-            elif _is_compilation == "1":
+            _is_compilation: Literal["0", "1", "true", "false"] = mp3_info['TCMP']
+            if _is_compilation == "0" or _is_compilation == "false":
+                is_compilation = False
+            elif _is_compilation == "1" or _is_compilation == "true":
                 is_compilation = True
             else:
                 raise Exception(f'TCMP value: {_is_compilation}')
@@ -219,17 +241,40 @@ class M4AController(SongController):
     def __init__(self, file_info: FileInfo, tsv_filename: Union[str, None]) -> None:
         mp4_info: MP4 = MP4(file_info.file_path)
         tag: MP4Tags = mp4_info.tags
-        song_name: str      = tag['\xa9nam'][0]
-        artist_name: str    = tag['\xa9ART'][0]
-        album_name: str     = tag['\xa9alb'][0]
+
+        song_name: str
+        if '\xa9nam' in tag:
+            song_name = tag['\xa9nam'][0]
+        else:
+            song_name = ''
+
+        # アーティスト名
+        artist_name: str
+        if '\xa9ART' in tag:
+            artist_name = tag['\xa9ART'][0]
+        else:
+            artist_name = ''
+
+        # アルバム名
+        album_name: str
+        if '\xa9alb' in tag:
+            album_name = tag['\xa9alb'][0]
+        else:
+            album_name = ''
+
         # アルバムアーティストが設定されているか確認、なければ空文字
+        album_artist: str
         if 'aART' in tag:
             album_artist = tag['aART'][0]
         else:
             album_artist = ''
 
         # コンピレーションアルバムかどうかのフラグの取得
-        is_compilation: bool = tag['cpil']
+        is_compilation: bool
+        if 'cpil' in tag:
+            is_compilation = tag['cpil']
+        else:
+            is_compilation = False
 
         super().__init__(file_info,
                         song_name,
@@ -371,14 +416,14 @@ def main() -> None:
                 is_compilation = controller.get_compilation()
                 print(f'> Album artist: {album_artist} (len: {len(album_artist)})')
                 print(f'> Compilation: {is_compilation}')
-                if album_artist == '' and is_compilation == True:
+                if album_artist == '' and is_compilation:
                     change_tags_in_same_dirs(current_directory_path, True, False)
-                elif album_artist == '' and is_compilation == False:
+                elif album_artist == '' and not is_compilation:
                     change_tags_in_same_dirs(current_directory_path, True, True)
-                elif album_artist != '' and is_compilation == True:
-                    pass
-                elif album_artist != '' and is_compilation == False:
+                elif album_artist != '' and not is_compilation:
                     change_tags_in_same_dirs(current_directory_path, False, True)
+                elif album_artist != '' and is_compilation:
+                    pass
             before_directory_path = current_directory_path
             before_artist_name = current_artist_name
             continue

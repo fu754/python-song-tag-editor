@@ -12,6 +12,10 @@
 - `.m4a`
     - iTunesで作成したAACフォーマットとALAC(Apple Lossless)で動作確認
 
+### 注意点
+- Windowsでディレクトリ名にドットが含まれているとPermission deniedになる
+    - `abcde Vol.1`など
+
 ## 環境
 - Python 3.11.6
 - mutagen 1.47.0
