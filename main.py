@@ -3,7 +3,7 @@ import shutil
 import glob
 from mutagen.id3 import ID3, TPE2, TCMP
 from mutagen.mp4 import MP4, MP4Tags
-from typing import Final, Literal, Union
+from typing import Final, Literal, Union, TypedDict
 from logging import Logger
 from LogController import get_logger
 
@@ -35,7 +35,7 @@ TSV_HEADER: Final[list[str]] = [
     'is_compilation'
 ]
 
-class TsvInfo():
+class TsvInfo(TypedDict):
     """
     tsvファイルに入れる情報
     TSV_HEADERと合わせること
@@ -65,7 +65,7 @@ class TsvInfo():
         self.is_compilation = is_compilation
         return
 
-class FileInfo():
+class FileInfo(TypedDict):
     """
     ファイルの情報
     """
